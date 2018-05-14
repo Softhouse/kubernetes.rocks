@@ -1,0 +1,23 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: breakfast-rocks-ingress
+  annotations:
+    kubernetes.io/tls-acme: "true"
+    kubernetes.io/ingress.class: "gce"
+spec:
+  tls:
+  - hosts:
+    - breakfast.kubernetes.rocks
+    secretName: breakfast-rocks-tls
+  backend:
+      serviceName: breakfast-rocks
+      servicePort: 8000
+  rules:
+  - host: breakfast.kubernetes.rocks
+    http:
+      paths:
+      - path: /*
+        backend:
+          serviceName: breakfast-rocks
+          servicePort: 8000

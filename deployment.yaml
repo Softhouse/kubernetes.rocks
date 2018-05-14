@@ -1,0 +1,57 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: breakfast-rocks
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        name: breakfast-rocks
+    spec:
+      containers:
+      - name: breakfast-rocks
+        image: node:alpine
+        ports:
+        - containerPort: 8000
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 5
+        env:
+        - name: NODENAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+      - name: kubectl
+        image: gcr.io/google_containers/kubectl:v1.0.7
+        command:
+        - /kubectl
+        args:
+        - proxy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: breakfast-rocks
+  name: breakfast-rocks
+spec:
+  ports:
+  - name: http
+    port: 8000
+    protocol: TCP
+    targetPort: 8000
+  selector:
+    name: breakfast-rocks
+  type: NodePort
