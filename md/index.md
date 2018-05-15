@@ -502,7 +502,7 @@ Point of ingress to your services: http(s) load balancer
   apiVersion: extensions/v1beta1
   kind: Ingress
   metadata:
-    name: kubernetes-presentation-ingress
+    name: breakfast-rocks
   spec:
     tls:
       secretName: tls-secret
@@ -518,15 +518,15 @@ Note: Ingress is traffic going into your services, Egress is traffic leaving you
 
 ```yaml
         backend:
-          serviceName: kubernetes-presentation
+          serviceName: breakfast-rocks
           servicePort: 8000
         rules:
-        - host: kubernetes.rocks
+        - host: breakfast.kubernetes.rocks
           http:
             paths:
             - path: /*
               backend:
-                serviceName: kubernetes-presentation
+                serviceName: breakfast-rocks
                 servicePort: 8000
 ```
 
@@ -546,13 +546,13 @@ I'd recommend using host based routing since you can use query language to fetch
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-    name: kubernetes-presentation
+    name: breakfast-rocks
 spec:
     replicas: 2
     template:
       metadata:
         labels:
-          name: kubernetes-presentation
+          name: breakfast-rocks
 ...
 ```
 
@@ -571,7 +571,7 @@ metadata is mandatory, the name is the identifier used to map between resources.
 ```yaml
         spec:
           containers:
-          - name: kubernetes-presentation
+          - name: breakfast-rocks
             image: nbrown/revealjs
             ports:
             - containerPort: 8000
@@ -658,7 +658,7 @@ Image needs to be different for upgrade to happen
 
 ```bash
 GCLOUD_PROJECT=$(gcloud config get-value project)
-NAME=kubernetes-rocks
+NAME=breakfast-rocks
 VERSION=$(cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | fold -w 8 | head -n 1)
 IMAGE=eu.gcr.io/${GCLOUD_PROJECT}/${NAME}:${VERSION}
 ```
@@ -672,7 +672,7 @@ docker push ${IMAGE}
 ```
 
 Note:
-Address to gcloud registry is eu.gcr.io or gcr.io for US (don't mix registry and cluster zones, you'll get a registry error when pods pull images), followed by project, name and version
+Address to gcloud registry is eu.gcr.io or gcr.io for US (don't mix registry and cluster regions, you'll get a registry error when pods pull images), followed by project, name and version
 The version environment variable is just a one-liner to generate a random string in bash
 Two options: cloud builder means you don't need local docker but you always send the complete build context (no local docker, but uploads more data). Classic docker means you build locally, but you'll only send the layers that diff in the image (local docker required, but smaller uploads, if you do proper Dockerfiles.
 You can of course use any registry
@@ -682,8 +682,8 @@ You can of course use any registry
 Replace image
 
 ```
-$ kubectl set image deployment/kubernetes-presentation \
-kubernetes-presentation=${IMAGE}
+kubectl set image deployment/breakfast-rocks \
+breakfast-rocks=${IMAGE}
 ```
 
 Check the status
@@ -691,9 +691,9 @@ Check the status
 ```
 $ kubectl get pods
 NAME                                       READY     STATUS              RESTARTS   AGE
-kubernetes-presentation-1717013009-93k6b   0/1       ContainerCreating   0          28s
-kubernetes-presentation-1717013009-njzvc   0/1       ContainerCreating   0          28s
-kubernetes-presentation-2040691132-r0d4b   0/1       Running             0          39m
+breakfast-rocks-1717013009-93k6b   0/1       ContainerCreating   0          28s
+breakfast-rocks-1717013009-njzvc   0/1       ContainerCreating   0          28s
+breakfast-rocks-2040691132-r0d4b   0/1       Running             0          39m
 ```
 
 Rolling upgrades by default!
@@ -739,7 +739,7 @@ Ingress IP is ephemeral (randomly assigned)
 ```
 $ kubectl get ing
 NAME                              HOSTS              ADDRESS        PORTS     AGE
-kubernetes-presentation-ingress   kubernetes.rocks   35.190.10.52   80, 443   6d
+breakfast-rocks-ingress   kubernetes.rocks   35.190.10.52   80, 443   6d
 ```
 
 ```
@@ -821,7 +821,7 @@ And a uniquely named secret name
     tls:
     - hosts:
       - kubernetes.rocks
-      secretName: kubernetes-presentation-tls
+      secretName: breakfast-rocks-tls
 ```
 
 
@@ -852,7 +852,7 @@ Check that secrets have been created for accounts and certs:
 ```
 kubectl get secrets
 kube-lego-account             Opaque           
-kubernetes-presentation-tls   kubernetes.io/tls
+breakfast-rocks-tls   kubernetes.io/tls
 ```
 
 
@@ -900,7 +900,7 @@ kubectl exec command seems to ignore entrypoints so /kubectl needs to be explici
 curl the api from the presentation container
 ```
 kubectl get pods
-kubectl exec <pod> -c kubernetes-presentation curl localhost:8001
+kubectl exec <pod> -c breakfast-rocks curl localhost:8001
 {
  "paths": [
    "/api",
@@ -923,7 +923,7 @@ env:
 
 ### Which zone are we in?
 ```
-kubectl exec <pod> -c kubernetes-presentation curl localhost:8001
+kubectl exec <pod> -c breakfast-rocks curl localhost:8001
 curl localhost:8001/api/v1/nodes/$NODENAME 2>/dev/null \
  | grep failure-domain.beta.kubernetes.io/zone
 ```
@@ -969,9 +969,9 @@ gcloud projects add-iam-policy-binding $GCLOUD_PROJECT --role roles/container.de
 ## Add trigger: substitutions
 Slightly overkill, but allows for a generic yaml
 * `_REPO_NAME`: kubernets-rocks
-* `_DEPLOYMENT`: kubernetes-presentation
+* `_DEPLOYMENT`: breakfast-rocks
 * `_GCR`: eu.gcr.io
-* `_CONTAINER_NAME`: kubernetes-presentation
+* `_CONTAINER_NAME`: breakfast-rocks
 * `_CLUSTER`: my-cluster
 * `_CLUSTER_ZONE`: europe-west1-b
 
@@ -1023,8 +1023,8 @@ git push origin master
 Deployed!
 ```
 kubectl get pods
-  kubernetes-presentation-2991560192-3rb72   2/2       Terminating   0          2m
-  kubernetes-presentation-764977494-fkspx    2/2       Running       0          20s
-  kubernetes-presentation-764977494-pk3bf    1/2       Running       0          20s
+  breakfast-rocks-2991560192-3rb72   2/2       Terminating   0          2m
+  breakfast-rocks-764977494-fkspx    2/2       Running       0          20s
+  breakfast-rocks-764977494-pk3bf    1/2       Running       0          20s
 ```
 <!-- .element: class="slides-link" -->

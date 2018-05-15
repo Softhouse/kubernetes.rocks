@@ -39,19 +39,3 @@ spec:
         - /kubectl
         args:
         - proxy
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    name: breakfast-rocks
-  name: breakfast-rocks
-spec:
-  ports:
-  - name: http
-    port: 8000
-    protocol: TCP
-    targetPort: 8000
-  selector:
-    name: breakfast-rocks
-  type: NodePort
