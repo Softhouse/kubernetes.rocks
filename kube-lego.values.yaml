@@ -1,9 +1,0 @@
-config:
-  LEGO_EMAIL: jonaseck@gmail.com
-  ## Let's Encrypt API endpoint
-  LEGO_URL: https://acme-v01.api.letsencrypt.org/directory
-  ## Production: https://acme-v01.api.letsencrypt.org/directory
-  ## Staging: https://acme-staging.api.letsencrypt.org/directory
-  rbac:
-    create: true
-    serviceAccountName: kube-lego

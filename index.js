@@ -38,17 +38,16 @@ app.use('/resources', express.static(path.join(__dirname, '/resources')));
 
 app.get('/', function (req, res) {
   if (process.env.NODENAME) {
-    console.log('http://localhost:8001/api/v1/nodes/' + process.env.NODENAME)
-    request('http://localhost:8001/api/v1/nodes/' + process.env.NODENAME, function (err, response, body) {
-      var metadata = JSON.parse(body).metadata;
-
-      //TODO
-      var zone = metadata == null
-        ? ''
-        : metadata.labels == null
+    request('https://' + process.env.KUBERNETES_SERVICE_HOST + '/api/v1/nodes/' + process.env.NODENAME, function (err, response, body) {
+      var zone = ''
+      if(!err){
+        var metadata = JSON.parse(body).metadata;
+        zone = metadata == null
           ? ''
-          : metadata.labels['failure-domain.beta.kubernetes.io/zone'];
-
+          : metadata.labels == null
+            ? ''
+            : metadata.labels['failure-domain.beta.kubernetes.io/zone'];
+      }
       res.render('index',
         {
           zone: zone

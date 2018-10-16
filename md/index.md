@@ -4,9 +4,9 @@
 Kubernetes in Google Kubernetes Engine (GKE)
 
 A site that is a presentation about how to setup itself
-[github.com/softhouse/kubernetes.rocks](http://github.com/softhouse/breakfast.kubernetes.rocks)
+[github.com/softhouse/breakfast.kubernetes.rocks](http://github.com/softhouse/breakfast.kubernetes.rocks)
 
-Last updated 2018-05-08
+Last updated 2018-10-16
 
 
 ## Agenda
@@ -33,9 +33,10 @@ What you need to know about kubernetes
 And then we'll get down and dirty
 
 
+
 # What is Docker 
 - Docker is the de-facto standard for Linux containers
-- Wraps up a piece of software in a complete filesystem that contains everything it needs to run
+- Wraps up software in a complete filesystem that contains everything it needs to run
 - An isolated part of a system kernel running an app with exact known contents
 
 
@@ -66,6 +67,7 @@ And then we'll get down and dirty
 - Official and user supplied
  - Dockerfiles for most occasions
  - Docker is only as safe as what you run
+- Cloud providers have private repos
 
 Note: In your org, you'll need a private registry, since docker is data intensive
 
@@ -157,10 +159,11 @@ Note:
 Cache is bound to the docker daemon (server host) performing the build
 .dockerignore is important to avoid cache misses
 
+
 ### Dockerfile - multi stage builds
 
 ```bash
-FROM golang:alpine3.7 as build
+FROM golang:alpine3.7 AS build
 ENV GOPATH /go
 RUN apk add --no-cache git \
 && go get -u github.com/googlecloudplatform/gcsfuse
@@ -170,6 +173,7 @@ RUN apk add --no-cache ca-certificates fuse mysql-client \
 && rm -rf /tmp/*
 COPY --from=build /go/bin/gcsfuse /usr/local/bin
 ```
+* `docker build --target <target>`
 
 Note: All of this is executed inside containers so build systems don't need dependencies.
 
@@ -180,7 +184,7 @@ Note: All of this is executed inside containers so build systems don't need depe
 - Just add a Dockerfile to your repo
 - Cryptographically signed software from repo to image
 - Tons of good (and bad) examples on dockerhub
-- You run them im kubernetes :)
+- How do we run and scale? Kubernetes!
 
 Note: There's a little bit more to it, but we'll cover that in the kubernetes part
 
@@ -194,8 +198,8 @@ Limitations on what kind of software you can deploy, setting up a GCP project an
 ### GKE - Prerequisites: Application
 
 - Containers only
-- Docker containers only
-- Linux containers only
+- Docker containers only (kubernetes CRI)
+- Linux containers only (kubernetes Windows)
 
 
 ### GKE - Prerequisites: Project
@@ -256,7 +260,9 @@ gcloud beta container clusters create "my-cluster" \
     --cluster-version=1.9.7-gke.0
 ```
 
-preemptible is ~80% off with built-in failure testing :)
+* Autoscale - elastic infrastructure
+* multi-zonal
+* preemptible is cheap and tests node outage
 
 beta commands not covered by SLA
 
@@ -267,25 +273,12 @@ num nodes is number of nodes per zone, so 3 nodes initially.
 machine-type matches on in "gcloud compute machine-types list".
 
 
-## cluster version?
+#### Docker Edge (for windows and mac)
+* Now includes local kubernetes cluster
+* No RBAC support yet
+* Need to install own ingress controller
 
-Does not default to latest available version
-
-List available upgrades:
-
-```
-gcloud container get-server-config
-
-```
-
-And upgrade, master first:
-
-```
-gcloud container clusters upgrade \
- --cluster-version=1.9.7-gke.0 my-cluster --master
-gcloud container clusters upgrade \
- --cluster-version=1.9.7-gke.0 my-cluster
-```
+`preferences` -> `kubernetes` -> `enable kubernetes`
 
 
 ### Set kubernetes context to cluster
@@ -301,7 +294,7 @@ To manually switch contexts
 
 ```
 kubectl config get-contexts
-kubectl config use-context <context>
+kubectl config use-context docker-for-desktop
 ```
 
 
@@ -326,7 +319,7 @@ Bare minimum :)
 
 * Open-source cloud-provider agnostic orchestration system for containerized applications.
  * Define your product as abstract resources
- * Same definition on cloud and local providers
+ * Same definition on cloud and local cluster
 * Built for google-scale with google-scale complexity in mind.
 
 
@@ -336,13 +329,15 @@ Bare minimum :)
 * Uses Google Compute Engine (GCE) Resources to run monitor your cluster and containers.
 * Built-in support for multiple zones and regions, endpoints, load balancers and other GCP services.
 
+Note: VMs, load balancers, disks etc will be visible 
+
 
 ## GKE and GCP quotas
 
 kubernetes resources uses GCP resources:
 * Subject to quotas
  * Limit errors reported in [Web console](https://console.cloud.google.com)
- * Kubernetes commands successful but pending forever
+ * Kubernetes commands successful but pending
 * External IPs, CPU, backend-services, Disk etc
 * Increased requests are generally auto-approved
 
@@ -354,7 +349,7 @@ If your kubernetes resources fail to initialize and are stuck in pending or simi
 ## Kubernetes: Learning Curve
 
 - Large scale production applications
- - Initially feels complex for small deployments
+ - Feels complex compared to docker-compose
  - Made for deployment, not development
  - Addresses problems you don't yet have
 - Succinctly Documented at [kubernetes.io](https://kubernetes.io/docs)
@@ -388,6 +383,7 @@ Created using commands or yaml/json files
 * `kubectl apply/create -f file.yaml`
 * Resources always defined in yaml/json spec
 * Files are easier to version control
+ * Reproducibility is key
 
 Note:
 Resources always result in a resource defined in yaml/json notation.
@@ -432,16 +428,16 @@ You must specify the type of resource to get. Valid resource types include:
 Let's limit ourselves to the ones you need to get started including some ~~good practices~~ caveats
 
 
-### Namespace
+### Resources: Namespace
 
 * Used to separate and organize resources
 * User access can be granted on namespace level
-```
+```bash
 kubectl get pods -n kube-system
 ```
 
 
-### Role-Based Access Control
+#### Resources: Role-Based Access Control
 
 configure policies through the Kubernetes API
 * `[Cluster]Role`: grants access to resources
@@ -449,23 +445,29 @@ configure policies through the Kubernetes API
 
 Cluster means cluster wide, otherwise namespace
 
-Enabled in kubernetes 1.8 by default:
+First you need to grant admin role to your user:
 
+```bash
+kubectl create clusterrolebinding \
+  your-user-cluster-admin-binding \
+  --clusterrole=cluster-admin \
+  --user=jonas.eckerstrom@softhouse.se
 ```
+```bash
 kubectl apply -f dashboard-rbac.yaml
 ```
 
 
-### Resource: Secrets and ConfigMaps
+### Resources: Secrets and ConfigMaps
 
 Obfuscated (not encrypted) and plain configuration:
 
-```
+```bash
 $ kubectl create secret tls tls-secret \
  --cert=tls.cert --key=tls.key
 ```
 
-```
+```bash
 $ kubectl create secret generic google-application-creds \
  --from-file=./google-application-credentials.json
 ```
@@ -486,7 +488,6 @@ Provided to pods as environment variables or files
 Note:
 Secrets can be generic, tls or docker-registry, configmaps are always generic.
 Files are updated almost immediately, environment vars aren't
-
 
 
 ### Resources: Ingress
@@ -553,6 +554,7 @@ spec:
       metadata:
         labels:
           name: breakfast-rocks
+          version: 0.2
 ...
 ```
 
@@ -572,12 +574,12 @@ metadata is mandatory, the name is the identifier used to map between resources.
         spec:
           containers:
           - name: breakfast-rocks
-            image: nbrown/revealjs
+            image: node:alpine
             ports:
             - containerPort: 8000
             readinessProbe:
               httpGet:
-                path: /
+                path: /healthz
                 port: 8000
 ```
 
@@ -626,10 +628,10 @@ Creates service that defines services as pod ports
 kind: Service
 apiVersion: v1
 metadata:
-  name: hello-world
+  name: breakfast-rocks
 spec:
   selector:
-    app: hello-world
+    name: breakfast-rocks
   ports:
   - port: 8000
   type: NodePort
@@ -665,7 +667,7 @@ IMAGE=eu.gcr.io/${GCLOUD_PROJECT}/${NAME}:${VERSION}
 
 Docker build and push
 
-```
+```bash
 gcloud auth configure-docker # Once per client
 docker build -t ${IMAGE} .
 docker push ${IMAGE}
@@ -681,14 +683,14 @@ You can of course use any registry
 ## Deploy
 Replace image
 
-```
+```bash
 kubectl set image deployment/breakfast-rocks \
 breakfast-rocks=${IMAGE}
 ```
 
 Check the status
 
-```
+```bash
 $ kubectl get pods
 NAME                                       READY     STATUS              RESTARTS   AGE
 breakfast-rocks-1717013009-93k6b   0/1       ContainerCreating   0          28s
@@ -736,13 +738,13 @@ DNS config not automatic in GCP
 
 Ingress IP is ephemeral (randomly assigned)
 
-```
+```bash
 $ kubectl get ing
 NAME                              HOSTS              ADDRESS        PORTS     AGE
 breakfast-rocks-ingress   kubernetes.rocks   35.190.10.52   80, 443   6d
 ```
 
-```
+```bash
 gcloud dns record-sets transaction start -z=kubernetes-rocks
 gcloud dns record-sets transaction add 35.190.10.52 \
   --name=kubernetes.rocks --ttl=300 --type=A \
@@ -781,35 +783,44 @@ Kubernetes package manager
 * charts can depend on charts
 * private and public chart repositories
 
-
-## kube-lego: values.yaml
-
-Download default values.yaml from [github](https://github.com/kubernetes/charts/blob/master/stable/kube-lego/values.yaml):
-
-```
-config:
-  LEGO_EMAIL: jonaseck@gmail.com
-  ## Let's Encrypt API endpoint
-  LEGO_URL: https://acme-v01.api.api.letsencrypt.org/directory
-  ## Production: https://acme-v01.api.letsencrypt.org/directory
-  ## Staging: https://acme-staging.api.letsencrypt.org/directory
-```
+Dockerhub for kubernetes
 
 
-## kube-lego: helm install
+## Cert-Manager: helm install
 Initialize the tiller agent and grant permissions once per cluster:
-```
+```bash
 kubectl apply -f helm-rbac.yaml
 helm init --service-account tiller
 # helm init --service-account default #for local kubernetes
 ```
 Install the chart
-```
-helm install stable/kube-lego -f kube-lego.values.yaml
+```bash
+helm install stable/cert-manager \
+    --name cert-manager \
+    --namespace kube-system \
+    --set ingressShim.extraArgs='{--default-issuer-name=letsencrypt,--default-issuer-kind=ClusterIssuer}'
 ```
 
 
-## kube-lego: Ingress
+## Cert-Manager: Issuer
+
+Cert-Manager adds a new resource type
+```yaml
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    server: https://acme-v01.api.letsencrypt.org/directory
+    email: jonas.eckerstrom@softhouse.se
+    privateKeySecretRef:
+      name: letsencrypt-private-key
+    http01: {}
+```
+
+
+## Cert-Manager Ingress
 Add annotations to metadata block
 ```
     annotations:
@@ -825,27 +836,7 @@ And a uniquely named secret name
 ```
 
 
-## kube-lego: GKE health check
-Sometimes randomly picks request path from other hs:
-Nodeport mapping port used as identifier in GCE
-```
-kubectl get svc | grep kube-lego
-  kube-lego-gce    8080:30217/TCP
-```
-Find the health check
-```
-compute health-checks list | grep 30217
-  k8s-be-30217--0e502c18fbf266a2  HTTP
-```
-List request path and update to `/healthz` if needed
-```
-gcloud compute health-checks describe k8s-be-30217--0e502c18fbf266a2 | grep requestPath
-  requestPath: /some-other-path
-gcloud compute health-checks update http k8s-be-30217--0e502c18fbf266a2 --request-path=/healthz
-```
-
-
-## kube-lego: Validation
+## Cert-Manager: Validation
 Configuring GCE global load balancer is slow (15-20m)
 
 Check that secrets have been created for accounts and certs:
@@ -854,7 +845,6 @@ kubectl get secrets
 kube-lego-account             Opaque           
 breakfast-rocks-tls   kubernetes.io/tls
 ```
-
 
 
 ## CAA Record
@@ -870,30 +860,28 @@ gcloud dns record-sets transaction execute -z=kubernetes-rocks
 
 
 ### Bonus: Access kubernetes API
-* Add a kubectl sidecar that runs kubectl proxy
+* Grant access to read API
 * api available to pods on localhost:8001
 
 
 ## Add a sidecar
 Append another container to deployment.yaml
-```
+```yaml
 - name: kubectl
   image: gcr.io/google_containers/kubectl:v1.0.7
   args:
   - proxy
 ```
-```
+```bash
 kubectl get pods
 kubectl exec -it <pod name> -c kubectl -- /kubectl version --short --client
-v0.18.0-120-gaeb4ac55ad12b1-dirty
+v1.0.7
 ```
-Image is old, let's update to your current version
 
 Note:
 -c kubectl means that we're running this command on the kubectl container in the pod
 kubectl exec command seems to ignore entrypoints so /kubectl needs to be explicitly added.
 -- tells the (outer/first) kubectl command to stop consuming args and pass them on to the command
-
 
 
 ## Test

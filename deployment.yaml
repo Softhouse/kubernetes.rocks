@@ -33,9 +33,5 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
-      - name: kubectl
-        image: gcr.io/google_containers/kubectl:v1.0.7
-        command:
-        - /kubectl
-        args:
-        - proxy
+        - name: NODE_TLS_REJECT_UNAUTHORIZED
+          value: "0"
