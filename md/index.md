@@ -1,12 +1,11 @@
-<!-- .slide: data-background="resources/index.jpg" -->
+# [kubernetes.rocks](https://kubernetes.rocks)
 
-# [breakfast.kubernetes.rocks](https://breakfast.kubernetes.rocks)
 Kubernetes in Google Kubernetes Engine (GKE)
 
 A site that is a presentation about how to setup itself
-[github.com/softhouse/breakfast.kubernetes.rocks](http://github.com/softhouse/breakfast.kubernetes.rocks)
+[github.com/softhouse/kubernetes.rocks](https://github.com/softhouse/kubernetes.rocks)
 
-Last updated 2018-10-16
+Last updated 2019-01-07
 
 
 ## Agenda
@@ -17,11 +16,13 @@ This presentation in fact.
 
 
 ## Overview
+
 - Docker Overview
-- Prerequisites
-- Kubernetes and GKE Crash Course
+- Kubernetes
+- Google Cloud Platform
 - Create Cluster
 - Deploy this presentation
+- Deployment breakdown
 - Add letsencrypt https using helm
 - Failure zone using Kubernetes API
 - Continous Build and Delivery
@@ -33,14 +34,28 @@ What you need to know about kubernetes
 And then we'll get down and dirty
 
 
+## Code along
 
-# What is Docker 
+- Examples are written in bash
+  - us git bash or linux subsystem for windows
+- All commands can be copy pasted
+
+```bash
+echo "hello world"
+# hello world
+```
+
+
+
+# What is Docker
+
 - Docker is the de-facto standard for Linux containers
 - Wraps up software in a complete filesystem that contains everything it needs to run
 - An isolated part of a system kernel running an app with exact known contents
 
 
 ## What is Docker: Isolation
+
 - Containerization, not Virtualization
  - No need to start an entire VM
 - Requires a Linux (or windows) kernel
@@ -52,6 +67,7 @@ And then we'll get down and dirty
 
 
 ### What is Docker: Exact Known Contents
+
 - Every change creates a signed image layer
  - No need to rebuild unchanged layers
  - One layer used in multiple images and containers
@@ -62,6 +78,7 @@ And then we'll get down and dirty
 
 
 ## Dockerhub
+
 - public docker registry
  - store and retrieve images
 - Official and user supplied
@@ -69,7 +86,7 @@ And then we'll get down and dirty
  - Docker is only as safe as what you run
 - Cloud providers have private repos
 
-Note: In your org, you'll need a private registry, since docker is data intensive
+Note: In your org, you'll need a private registry, unless you want to share your code, and docker can be data intensive
 
 
 # Dockerfile
@@ -137,6 +154,7 @@ CMD [ "npm", "start" ]          ---> 984c1aace979
 
 
 ## Dockerfile - cache
+make a change in `index.html`
 
 ```bash
 docker build .
@@ -163,7 +181,7 @@ Cache is bound to the docker daemon (server host) performing the build
 ### Dockerfile - multi stage builds
 
 ```bash
-FROM golang:alpine3.7 AS build
+FROM golang:alpine3.7 AS my-build
 ENV GOPATH /go
 RUN apk add --no-cache git \
 && go get -u github.com/googlecloudplatform/gcsfuse
@@ -173,8 +191,10 @@ RUN apk add --no-cache ca-certificates fuse mysql-client \
 && rm -rf /tmp/*
 COPY --from=build /go/bin/gcsfuse /usr/local/bin
 ```
-* `docker build --target <target>`
-
+Can build a specific build phase:
+```bash
+docker build --target my-build
+```
 Note: All of this is executed inside containers so build systems don't need dependencies.
 
 
@@ -184,166 +204,287 @@ Note: All of this is executed inside containers so build systems don't need depe
 - Just add a Dockerfile to your repo
 - Cryptographically signed software from repo to image
 - Tons of good (and bad) examples on dockerhub
-- How do we run and scale? Kubernetes!
+- How do we run in production? Kubernetes!
 
 Note: There's a little bit more to it, but we'll cover that in the kubernetes part
 
 
 
-## GKE - Prerequisites
+## What is kubernetes
 
-Limitations on what kind of software you can deploy, setting up a GCP project and installing the software you need to deploy this application.
+Open-source cloud-provider agnostic orchestration system for containerized applications.
 
-
-### GKE - Prerequisites: Application
-
-- Containers only
-- Docker containers only (kubernetes CRI)
-- Linux containers only (kubernetes Windows)
+- An API for running containers on a cluster of nodes
+ - Define your product as abstract resources
+ - Same definition on cloud and local cluster
+- Built for google-scale with google-scale complexity in mind.
 
 
-### GKE - Prerequisites: Project
+## Kubernetes - Components
+
+An API for running containers on a cluster of nodes
+
+- API - Both on master and nodes
+- Scheduler - starts containers on nodes
+- Controllers - acts on differences between wanted and actual state
+  - kube controller - manages kubernetes resources
+  - cloud controller - manages cloud resources
+- etcd - data backing of cluster state
+
+
+### Google Kubernetes Engine (GKE)
+
+- Managed Kubernets on Google Cloud Platform
+- Uses Google Compute Engine (GCE) Resources to run and monitor your cluster and containers.
+- Built-in support for multiple zones and regions, endpoints, load balancers and other GCP services.
+- Free Master nodes - only see and pay for worker nodes
+
+Note: VMs, load balancers, disks etc will be visible as regular cloud resources
+
+
+
+## Google Cloud Platform
+
+**Google Cloud Platform (GCP)** is the public cloud offering by google
+
+**Google Cloud** includes GCP and services offered by google such as gmail, g-suite and drive
+
+Data stored in GCP is always yours
+
+
+<!-- .slide: data-background="https://www.datacenterknowledge.com/sites/datacenterknowledge.com/files/wp-content/uploads/2008/08/google-cloud-platform-infra-map.jpg" data-background-size="contain" data-background-position="center" -->
+
+Note: This is actually what GCP is. There are Regions and in each region there are redundancy zones
+
+
+## GCP - Pricing and Quotas
+
+Provides compute resources and managed services
+
+- Pay as you go per minute for RAM, CPU, disk etc
+  - 30% off consistently used resources
+  - Promotes elastic infrastrucutre
+- Quotas are limits for things that cost
+ - Small quota requests are automatically approved
+ - Trials have hard limits (8 CPU)
+
+
+## GCP - Getting Started
+
+Set up a GCP project and Install the tools you need to deploy this application.
+
+
+### GCP - Getting Started: Project
 
 1. Create a new project at [google cloud console](https://console.cloud.google.com)
 1. Enable free trial or set up a billing account
-1. Click container engine and enable it or execute
+
+
+### GCP - gcloud CLI
+
+1. Install [google cloud SDK](https://cloud.google.com/sdk/downloads)
 ```bash
-gcloud services enable container.googleapis.com
-gcloud services enable containerregistry.googleapis.com
-```
-1. Wait for container engine to become available
-
-Note:
-
-Remembering which apis to enable can be a hassle, recommend writing down the full name or even yet, include a small script
-
-
-### GKE - Prerequisites: Tools
-
-1. Download and install [google cloud SDK](https://cloud.google.com/sdk/downloads)
-```bash
-cask install google-cloud-sdk # for mac
+brew cask install google-cloud-sdk # for mac
 alias gcloud='gcloud.cmd' #for git bash
 ```
-1. Install components (Beta not covered by SLA)
+1. Install components (Beta means not covered by SLA)
 ```bash
+# run in cmd.exe not git bash for windows
 gcloud components install kubectl beta
-# cmd.exe not git bash for windows
 ```
-1. Log in (second line optional, if you're having issues)
+1. Select or create a GCP project to use
 ```bash
 gcloud init
-gcloud auth application-default login
-gcloud config set compute/zone europe-west1-b
 ```
 
 Note:
 
 For windows, gcloud.cmd isn't aliased to gcloud by default, making copy-pasting code from the presentation a hassle unless you set an alias
 For windows use the interactive installer, for linux, don't use apt/yum cause the gcloud update commands won't work
-Commands differ if they're prefixed by beta
+Commands can differ if they're prefixed by beta
 
 
-
-### Create A Cluster
-Create an autoscaling cluster with nodes in 3 zones:
-
-```bash
-gcloud beta container clusters create "my-cluster" \
-    --scopes cloud-platform \
-    --enable-autoscaling --max-nodes=3 --min-nodes=0 \
-    --num-nodes 1 --machine-type f1-micro \
-    --node-locations=\
-      europe-west1-b,europe-west1-c,europe-west1-d \
-    --disk-size 10 \
-    --preemptible \
-    --cluster-version=1.9.7-gke.0
-```
-
-* Autoscale - elastic infrastructure
-* multi-zonal
-* preemptible is cheap and tests node outage
-
-beta commands not covered by SLA
-
-Note:
-
-Scope configures what the nodes in the cluster are allowed to do, and cannot be changed without creating a new node pool.
-num nodes is number of nodes per zone, so 3 nodes initially.
-machine-type matches on in "gcloud compute machine-types list".
-
-
-#### Docker Edge (for windows and mac)
-* Now includes local kubernetes cluster
-* No RBAC support yet
-* Need to install own ingress controller
-
-`preferences` -> `kubernetes` -> `enable kubernetes`
-
-
-### Set kubernetes context to cluster
-`kubectl` commands are sent to the active context
-
-Adds the gke context to config and activates it
-
-```
-gcloud container clusters get-credentials my-cluster
-```
-
-To manually switch contexts
-
-```
-kubectl config get-contexts
-kubectl config use-context docker-for-desktop
-```
-
-
-## Kubernetes Dashboard
-
-Start a proxy to access a GUI http://localhost:8001/ui
-
-Not Recommended in GKE, use [Kubernetes Engine](https://console.cloud.google.com/kubernetes/workload) GUI
-
-```
-kubectl proxy &
-```
-
-
-
-# Kubernetes and GKE Crash Course
-
-Bare minimum :)
-
-
-## Kubernetes
-
-* Open-source cloud-provider agnostic orchestration system for containerized applications.
- * Define your product as abstract resources
- * Same definition on cloud and local cluster
-* Built for google-scale with google-scale complexity in mind.
-
-
-### Google Kubernetes Engine (GKE)
-
-* Managed Kubernets on Google Cloud Platform
-* Uses Google Compute Engine (GCE) Resources to run monitor your cluster and containers.
-* Built-in support for multiple zones and regions, endpoints, load balancers and other GCP services.
-
-Note: VMs, load balancers, disks etc will be visible 
-
-
-## GKE and GCP quotas
+## GCP quotas and GKE
 
 kubernetes resources uses GCP resources:
-* Subject to quotas
+
+* Resources are subject to quotas
  * Limit errors reported in [Web console](https://console.cloud.google.com)
- * Kubernetes commands successful but pending
+ * Kubernetes commands stuck pending
 * External IPs, CPU, backend-services, Disk etc
 * Increased requests are generally auto-approved
+
+[Quotas](https://console.cloud.google.com/iam-admin/quotas?usage=USED) used to view usage and increase quotas
 
 Note:
 
 If your kubernetes resources fail to initialize and are stuck in pending or similar, check for notifications at console.cloud.google.com
+
+
+
+## Create a Cluster
+
+You need a cluster to code along, can be either a GKE cluster or local development cluster
+
+
+### GKE - Create A Cluster
+
+Enable Services :
+```bash
+gcloud services enable container.googleapis.com
+gcloud services enable containerregistry.googleapis.com
+```
+Create an autoscaling, multi-zone, preemptible cluster
+```bash
+gcloud beta container clusters create "my-cluster" \
+    --scopes cloud-platform \
+    --enable-autoscaling --max-nodes=3 --min-nodes=0 \
+    --num-nodes 1 --machine-type g1-small \
+    --node-locations=europe-north1-a,europe-north1-b,europe-north1-c \
+    --disk-size 10 \
+    --preemptible \
+    --zone=europe-north1-a \
+    --cluster-version=1.11.5-gke.5
+```
+
+beta commands not covered by SLA (preemptible)
+
+Note:
+
+Scope configures what the nodes in the cluster are allowed to do, and cannot be changed without creating a new node pool.
+zones and regions: google cloud is a globally spanning network with datacenters in certain regions, within each datacenters are zones with separate networking, cooling, electricity etc. zonal outages can occur
+num nodes is number of nodes per zone, so 3 nodes initially.
+machine-type matches on in "gcloud compute machine-types list".
+
+
+#### Docker (for windows and mac)
+
+Docker includes local kubernetes cluster:
+
+`Docker` -> `preferences` ->`kubernetes` -> `enable kubernetes`
+
+* No Role Based Access Control (RBAC) support yet
+* Need to [install own ingress controller](https://kubernetes.github.io/ingress-nginx/deploy/):
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/provider/cloud-generic.yaml
+```
+
+
+### Set kubernetes Context
+
+`kubectl` commands are sent to the active context
+
+GKE
+
+```bash
+gcloud container clusters get-credentials my-cluster --region europe-north1
+```
+
+Plain Kubernetes
+
+```bash
+kubectl config get-contexts
+kubectl config use-context docker-for-desktop
+```
+
+Docker for desktop has a context menu for switching
+
+
+#### Kubernetes (Standard) Dashboard
+
+GKE recommends a proprietary [Kubernetes Engine](https://console.cloud.google.com/kubernetes/workload) GUI
+
+- **GKE**: Added as an addon at cluster creation <br> `--addons=KubernetesDashboard`
+- **local**: Added by executing:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v1.10.1/src/deploy/recommended/kubernetes-dashboard.yaml
+```
+
+start a proxy and browse to [localhost:8001/...](http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/)
+
+```bash
+kubectl proxy
+```
+
+How to get a token if file login doesn't work
+
+```bash
+kubectl get secret -o jsonpath='{.items[?(@.metadata.annotations.kubernetes\.io/service-account\.name == "default")].data.token}' | base64 --decode
+```
+
+Note: Logging in can be a bit of a pain. If kubeconfig file doesn't work, use a tokeb
+
+
+
+
+## Deploy the presentation
+
+Let's build the image deploy this presentation in kubernetes
+
+
+## Build
+
+Build and tag the docker image
+
+```bash
+GCLOUD_PROJECT=$(gcloud config get-value project)
+NAME=kubernetes-rocks
+VERSION=0.0.1
+IMAGE=eu.gcr.io/${GCLOUD_PROJECT}/${NAME}:${VERSION}
+docker build . -t ${IMAGE}
+# IMAGE=eu.gcr.io/kubernetes-rocks/kubernetes-rocks:0.0.1
+# for local development use IMAGE=${NAME}:${VERSION}
+```
+- Tag is a URL where to push and fetch the image
+
+
+## Deploy the Image
+
+List all the resources on the cluster
+```bash
+kubectl get all
+# service/kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP   5h56m
+```
+Let's run something and see what happens
+```bash
+kubectl run kubernetes-rocks --image=${IMAGE}
+${NAME}:${VERSION}
+# kubernetes-rocks:0.0.1
+```
+
+
+### Deploy the Image - What happened?
+
+List all the resources on the cluster again
+
+```bash
+kubectl get all
+# NAME                                    READY   STATUS    RESTARTS   AGE
+# pod/kubernetes-rocks-7756c54769-d29hj   1/1     Running   0          16s
+#
+#
+# NAME                               READY   UP-TO-DATE   AVAILABLE   AGE
+# deployment.apps/kubernetes-rocks   1/1     1            1           16s
+#
+# NAME                                          DESIRED   CURRENT   READY   AGE
+# replicaset.apps/kubernetes-rocks-7756c54769   1         1         1       16s
+# ...
+```
+
+We've created a **pod**, a **replicaset** and a **deployment**
+
+
+### Expose the Service
+
+We need to expose the service to reach it outside the cluster
+
+```bash
+kubectl expose deploy kubernetes-rocks --port=80 --target-port=8000
+# service/kubernetes-rocks exposed
+```
+
 
 
 ## Kubernetes: Learning Curve
@@ -389,40 +530,30 @@ Note:
 Resources always result in a resource defined in yaml/json notation.
 
 
+
 ## Kubernetes: Resource Types
 
 ```
 $ kubectl get
 You must specify the type of resource to get. Valid resource types include:
 
-    * clusters (valid only for federation apiservers)
-    * componentstatuses (aka 'cs')
     * configmaps (aka 'cm')
     * daemonsets (aka 'ds')
     * deployments (aka 'deploy')
-    * endpoints (aka 'ep')
-    * events (aka 'ev')
     * horizontalpodautoscalers (aka 'hpa')
     * ingresses (aka 'ing')
     * jobs
-    * limitranges (aka 'limits')
     * namespaces (aka 'ns')
     * networkpolicies
     * nodes (aka 'no')
     * persistentvolumeclaims (aka 'pvc')
     * persistentvolumes (aka 'pv')
     * pods (aka 'po')
-    * podsecuritypolicies (aka 'psp')
-    * podtemplates
     * replicasets (aka 'rs')
-    * replicationcontrollers (aka 'rc')
-    * resourcequotas (aka 'quota')
     * secrets
     * serviceaccounts (aka 'sa')
     * services (aka 'svc')
     * statefulsets
-    * storageclasses
-    * thirdpartyresources
 ```
 
 Let's limit ourselves to the ones you need to get started including some ~~good practices~~ caveats
