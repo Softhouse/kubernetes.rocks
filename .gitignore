@@ -1,4 +1,2 @@
 transaction.yaml
-kubectl
-/node_modules/
-/package*
+node_modules/

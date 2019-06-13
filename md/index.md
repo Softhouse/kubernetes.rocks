@@ -683,7 +683,7 @@ The second half is your pod spec
           containers:
           - name: kubernetes-rocks
             imagePullPolicy: IfNotPresent
-            image: eu.gcr.io/ericsson-demo-231407/kubernetes-rocks:0.0.1
+            image: eu.gcr.io/kubernetes-rocks/kubernetes-rocks:0.0.1
 #           ports:
 #           - containerPort: 8000
 #           readinessProbe:
